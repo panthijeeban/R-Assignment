@@ -1,0 +1,136 @@
+---
+title: "R Homework Assignment 3"
+author: "Jeeban Panthi, Mamoon Y. Ismail, Tiare J. Fridrich "
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Introduction
+
+Time-series data for a small mammal community in southern Arizona. Studying the effects of rodents and ants on the plant community that has been running for almost 40 years. Analyzing the the dataset to investigate trends and relationships. 
+
+## Global Options
+
+```{r global_options, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE,
+                      fig.width=12, fig.height=8, fig.path='figs/')
+```
+
+
+## Required R packages 
+
+```{r loadlib, echo=TRUE}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(gridExtra)
+library(dplyr)
+library(ggpubr)
+library(Hmisc)
+```
+
+## Reading Data
+
+```{r loaddata, echo=TRUE}
+surveys <- read_csv("https://ndownloader.figshare.com/files/2292169")
+surveys_NAsrem <- surveys %>% filter(!is.na(weight), !is.na(hindfoot_length), !is.na(sex), species_id != "")
+```
+
+#Plots
+
+###1. Count of females and males of each species observed 
+```{r number_individuals_species_sex}
+ggplot(surveys_NAsrem) + stat_count(aes(x = species_id, fill = sex), position = "dodge")+ylab('Number of individuals recorded')+xlab('Species ID')+theme(axis.text.x = element_text(angle = 90))
+```
+Figure 1: Number of individuals of each of the species classfied by sex.
+
+The species 'DM' has the highest population recorded over the whole period of observation.
+
+
+###2. Number of individuals observed over time separated by sex 
+```{r individuals_sex_over_time}
+yearly_sex_counts <- surveys_NAsrem %>% group_by(year, species_id, sex) %>%
+  tally
+ggplot(data = yearly_sex_counts, aes(x = year, y = n, color = sex, group = sex)) +
+  geom_line() +
+  facet_wrap(~ species_id) +
+  theme_bw() +ylab('Number of Individuals') + xlab('Year')+ theme(axis.text.x = element_text(angle = 90))
+```
+Figure 2: Number of individuals of each sex observed over time, separated by species
+
+The species 'PL' has abruptly gone up since 1995, which did not show up before. Where some other species shown up only for a certain period of time. 
+
+###3. Total Number of individuals of all species surveyed yearly by plot type
+```{r species_count_by_plot}
+Plot_counts <- surveys_NAsrem %>% group_by(year, plot_type) %>% tally()
+ggplot(Plot_counts, aes(x=year, y=n, color=plot_type, legend=F)) + geom_line()+geom_smooth(method = "lm")+facet_wrap(~plot_type)
+```
+Figure 3: Time series faceting plot showing the count of individuals observed in each plot type yearly.
+
+Plot type 'control' has the highest record of observation for individuals of all species and the same plot has highest increasing slope of all the species.The shaded area around the trend lines indicate the 95% confidence interval. 
+
+###4.	Hindfoot length of different species
+```{r boxplot_hindfoot_lengths_different_species}
+ggplot(surveys_NAsrem, aes(x = species_id, y = hindfoot_length)) +
+  geom_boxplot(alpha=1, color= 'black')+xlab('Species ID')+ylab('Hindfoot length (mm)')+
+  stat_summary(fun.y=mean, color="blue", geom="point",  shape=15, size=1,show_guide = T,show.legend = T)+ theme(axis.text.x = element_text(angle = 90))
+```
+Figure 4: Box plot of hindfoot length of different species. The blue dot indicates the average (mean) hindfoot length.
+
+The species 'DS' has the highest hindfoot length among the others and the species 'BA" has the shortest. 
+
+###5. Relationship between sex and hindfoot length
+```{r relationship between sex and hindfoot length boxplot}
+ggplot(surveys_NAsrem, aes(x=sex, y=hindfoot_length))+
+  geom_boxplot(alpha = 1,color='blue')+xlab('Sex')+ylab('Length of hindfoot (mm)')+
+  stat_summary(fun.y=mean, color="red", geom="point", shape=15, size=1,show_guide = T, show.legend = T) + theme_bw()
+```
+Figure 5: Hindfoot length for male and female. The red dots indicate the mean (average) hindfoot length. 
+
+Mean and Median values of hindfoot length of male are higher than those of female.
+
+###6. Males and females average weight over time
+```{r Sex_average_weight}
+spe_meanweight <- surveys_NAsrem %>% group_by(year,species_id, sex) %>%
+  mutate(mean_weight = mean(weight))
+ggplot(spe_meanweight, aes(x=year, y=mean_weight, color=sex)) +
+  geom_line()+facet_wrap(~species_id) + theme_bw() +
+  theme(panel.grid = element_blank()) + xlab('Year') + ylab('Average weight (gram)') + theme(axis.text.x = element_text(colour = "grey20", size = 10, angle = 90, hjust = 0.5, vjust = 0.5))
+```
+Figure 6: time series faceting plot showing yearly average weight of each male and female species.
+
+The plot shows that species 'NL' is the heaviest species among the others, and has noticable difference in weight between males and females, were males are generally heavier. Followed by 'Ds' species which  shows difference in weight between males and females. 
+
+###7. Correlationship between weight and hindfoot length
+```{r weight_and_hindfoot_length}
+ggscatter(surveys_NAsrem, x = "weight", y = "hindfoot_length", color = "black", shape = 21, size = 2, add = "reg.line", conf.int = TRUE, cor.coef = TRUE, cor.method = "pearson",  xlab = "Hindfoot Length (mm)", ylab = "Weight (gram)")
+
+c7 <- cor.test(surveys_NAsrem$weight,surveys_NAsrem$hindfoot_length)
+```
+Figure 7: Scatter plot showing the correlation between weight and hindfoot length of species
+
+The p-value of the test is less than the significance level alpha = 0.05. We can conclude that weight and hindfoot length are significantly positively correlated with a correlation coefficient of `r c7$estimate` and p-value of `r c7$p.value` (rounding off).There is 95% confidence that the true regression line lies within the shaded region. It shows us the uncertainty inherent in our estimate of the true relationship hindfoot length and weight.
+
+###8. Relationship between hindfoot length and weight of species OT
+```{r OT_weight_hindfoot_length}
+species_OT <- surveys_NAsrem %>% filter(species_id == 'OT')
+ggscatter(species_OT, x = "weight", y = "hindfoot_length", color = "black", shape = 21, size = 2, add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",  xlab = "Hindfoot Length (mm)", ylab = "Weight (gram)")
+
+c8 <- cor.test(species_OT$weight,species_OT$hindfoot_length)
+```
+Figure 8: Relationship between hindfoot length and weight of individuals for species OT. 
+
+Here, the p-value is `r c8$p.value`, therfore the correlation coefficient `r c8$estimate` is statistically significant at 95% confidence interval.
+
+###9. Relationship between species weight and sex
+```{r weight_sex}
+ggplot(surveys_NAsrem) + geom_boxplot(aes(x = species_id, y = weight, fill = sex)) +
+  coord_flip()+ylab('Weight(gram)')+xlab('Species ID')
+```
+Figure 9: Box plot showing the relationship between species sex and weight
+
+It is obvious that range of weight between males and females of the same species varies for the most species, but doesn't have a common trend in favor of any sex among all of the species. 
+
